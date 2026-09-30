@@ -1,5 +1,7 @@
 # Infini Working Blueprint
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FJude-coedz%2Finfini-working-blueprint&project-name=infini-working-blueprint&repository-name=infini-working-blueprint)
+
 A speculative interactive Discovery Sprint deliverable built for a conversation with Infini AI Solutions.
 
 The prototype demonstrates a possible bridge between discovery and a production Build Partnership: prioritise the opportunity, model the proposed workflow, run a thin functional simulation, then separate validated behaviour from unresolved production dependencies.
