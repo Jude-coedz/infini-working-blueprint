@@ -1,174 +1,391 @@
 "use client";
 
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, ArrowLeft, ArrowRight, Check, Play, Rotate } from "./icons";
-import { opportunities, simulationSteps, validationItems, workflow } from "@/data/blueprint";
+import { simulationSteps } from "@/data/blueprint";
 
-type Stage = "prioritise" | "model" | "simulate" | "build";
-const stages: Array<{key:Stage; label:string; sub:string}> = [
-  { key:"prioritise", label:"Prioritise", sub:"Choose the first thin slice" },
-  { key:"model", label:"Model", sub:"Expose system + human boundaries" },
-  { key:"simulate", label:"Simulate", sub:"Run the proposed workflow" },
-  { key:"build", label:"Build readiness", sub:"Separate proof from unknowns" },
-];
+type View = "intro" | "demo" | "handoff";
 
-function Pill({children,tone="neutral"}:{children:React.ReactNode;tone?:"neutral"|"good"|"warn"|"accent"}) {
-  return <span className={"pill "+tone}>{children}</span>;
-}
-
-function Header({stage,setStage}:{stage:Stage;setStage:(s:Stage)=>void}) {
-  return <>
-    <header className="topbar">
-      <div className="brand"><span className="mark">∞</span><div><strong>INFINI.AI</strong><span>WORKING BLUEPRINT / 001</span></div></div>
-      <div className="live"><span/>Concept prototype · representative data</div>
-      <div className="case">Fleet operations & compliance</div>
-    </header>
-    <nav className="stage-nav">
-      {stages.map((item,i)=><button key={item.key} onClick={()=>setStage(item.key)} className={stage===item.key?"active":""}>
-        <span className="stage-num">{String(i+1).padStart(2,"0")}</span>
-        <span><strong>{item.label}</strong><small>{item.sub}</small></span>
-        {stage===item.key && <motion.i layoutId="active-stage" />}
-      </button>)}
-    </nav>
-  </>;
-}
-
-function Frame({label,title,desc,children,aside,actions}:{label:string;title:string;desc:string;children:React.ReactNode;aside:React.ReactNode;actions:React.ReactNode}) {
-  return <div className="frame">
-    <section className="main-panel">
-      <div className="intro"><span className="eyebrow">{label}</span><h1>{title}</h1><p>{desc}</p></div>
-      {children}
-      <div className="actions">{actions}</div>
-    </section>
-    <aside className="rail">{aside}</aside>
-  </div>;
-}
-
-function Prioritise({next}:{next:()=>void}) {
-  const [selected,setSelected]=useState(opportunities[0].id);
-  const active=opportunities.find(o=>o.id===selected) ?? opportunities[0];
-  return <Frame
-    label="DISCOVERY OUTPUT · OPPORTUNITY MAP"
-    title="Pick the smallest slice that proves the system."
-    desc="Instead of leaving discovery with a list of possibilities, make the highest-value workflow concrete enough for stakeholders to challenge before engineering commits."
-    actions={<><span/><button className="primary" onClick={next}>Model proposed workflow <ArrowRight size={14}/></button></>}
-    aside={<>
-      <div className="rail-top"><span>Selected opportunity</span><Pill tone="accent">Recommended</Pill></div>
-      <h2>{active.title}</h2><p>{active.rationale}</p>
-      <dl><div><dt>Intervention</dt><dd>{active.intervention}</dd></div><div><dt>Source</dt><dd>{active.source}</dd></div></dl>
-      <div className="rule"/><div className="note"><Check size={14}/>The goal is not to prove production readiness. It is to prove that the problem, workflow and human boundary are worth building.</div>
-    </>}
-  >
-    <div className="decision"><div><span>Proposed first slice</span><strong>Driver updates + compliance exceptions</strong></div><p>High-frequency operational signal, measurable outcome, limited initial surface area.</p></div>
-    <div className="table">
-      <div className="thead grid"><span>Opportunity</span><span>Impact</span><span>Feasibility</span><span>Risk</span><span/></div>
-      {opportunities.map((o,i)=><button key={o.id} onClick={()=>setSelected(o.id)} className={"row grid "+(selected===o.id?"selected":"")}>
-        <div><b>{String(i+1).padStart(2,"0")}</b><span><strong>{o.title}</strong><small>{o.problem}</small></span></div>
-        <span><i className="dot good"/>{o.impact}</span><span><i className={"dot "+(o.feasibility==="High"?"good":"warn")}/>{o.feasibility}</span><span>{o.risk}</span><ArrowRight size={13}/>
-      </button>)}
+function StepDots({ view }: { view: View }) {
+  const current = view === "intro" ? 0 : view === "demo" ? 1 : 2;
+  return (
+    <div className="step-dots" aria-label={`Step ${current + 1} of 3`}>
+      {[0, 1, 2].map((index) => (
+        <span key={index} className={index <= current ? "on" : ""} />
+      ))}
     </div>
-    <p className="source">Public case-study context is separated from illustrative assumptions so the prototype does not imply access to client-confidential systems.</p>
-  </Frame>;
+  );
 }
 
-function Model({next,back}:{next:()=>void;back:()=>void}) {
-  const [selected,setSelected]=useState(workflow[0].id);
-  const node=workflow.find(w=>w.id===selected) ?? workflow[0];
-  return <Frame
-    label="SYSTEM MODEL · PROPOSED FLOW"
-    title="Make the handoffs inspectable."
-    desc="A discovery artifact becomes more useful when everyone can see where software acts, where a person stays in control, and which dependencies still need proof."
-    actions={<><button className="secondary" onClick={back}><ArrowLeft size={14}/>Back</button><button className="primary" onClick={next}>Run thin simulation <ArrowRight size={14}/></button></>}
-    aside={<><div className="rail-top"><span>Node detail</span><Pill>{node.certainty}</Pill></div><h2>{node.label}</h2><p>{node.description}</p>
-      <dl><div><dt>Owner</dt><dd>{node.owner}</dd></div><div><dt>System</dt><dd>{node.system}</dd></div><div><dt>Human role</dt><dd>{node.human}</dd></div></dl>
-      <div className="rule"/><p className="micro">Each node is deliberately framed as proposed or illustrative until client evidence confirms it.</p></>}
-  >
-    <div className="flow">
-      {workflow.map((w,i)=><div className="flow-wrap" key={w.id}>
-        <button onClick={()=>setSelected(w.id)} className={"flow-node "+(selected===w.id?"selected":"")}>
-          <span>{String(i+1).padStart(2,"0")}</span><strong>{w.label}</strong><small>{w.owner}</small>
-        </button>{i<workflow.length-1 && <ArrowRight size={16}/>}
-      </div>)}
+function Shell({
+  view,
+  children,
+}: {
+  view: View;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="app-shell">
+      <header className="site-header">
+        <div className="identity">
+          <span className="logo-mark">∞</span>
+          <div>
+            <strong>Infini Working Blueprint</strong>
+            <span>Speculative Discovery Sprint concept</span>
+          </div>
+        </div>
+
+        <div className="header-meta">
+          <span>Fleet operations example</span>
+          <StepDots view={view} />
+        </div>
+      </header>
+
+      <main className="page-wrap">{children}</main>
+
+      <footer className="site-footer">
+        <span>Built from public case-study context + representative assumptions</span>
+        <span>Concept only · no client-confidential data</span>
+      </footer>
     </div>
-    <div className="boundary">
-      <div><span className="eyebrow">AUTOMATION BOUNDARY</span><p>Structure data, update the journey record and evaluate deterministic rules.</p></div>
-      <div><span className="eyebrow">HUMAN BOUNDARY</span><p>Define policy, review low-confidence events and resolve compliance exceptions.</p></div>
-    </div>
-  </Frame>;
+  );
 }
 
-function Simulate({next,back}:{next:()=>void;back:()=>void}) {
-  const [running,setRunning]=useState(false);
-  const [done,setDone]=useState(0);
-  const [reviewed,setReviewed]=useState(false);
-  async function run(){
-    if(running)return; setRunning(true); setDone(0); setReviewed(false);
-    for(let i=1;i<=simulationSteps.length;i++){ await new Promise(r=>setTimeout(r,700)); setDone(i); }
+function Intro({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="intro-layout">
+      <section className="intro-copy">
+        <span className="kicker">THE IDEA</span>
+        <h1>What if discovery ended with something the client could actually use?</h1>
+        <p className="lede">
+          Infini already helps clients decide what is worth building. This concept adds one
+          lightweight step before the full Build Partnership: a thin interactive slice of the
+          highest-value workflow.
+        </p>
+
+        <div className="intro-points">
+          <div>
+            <span>01</span>
+            <p><strong>Make the idea concrete.</strong> Let stakeholders react to behaviour, not just a roadmap.</p>
+          </div>
+          <div>
+            <span>02</span>
+            <p><strong>Expose weak assumptions early.</strong> See where data, integrations or policy still need proof.</p>
+          </div>
+          <div>
+            <span>03</span>
+            <p><strong>Hand engineering a clearer starting point.</strong> Carry validated workflow decisions into the build.</p>
+          </div>
+        </div>
+
+        <button className="primary-cta" onClick={onStart}>
+          Walk through the example <ArrowRight size={16} />
+        </button>
+        <p className="cta-note">Takes about 60 seconds.</p>
+      </section>
+
+      <aside className="concept-card">
+        <div className="concept-label">DISCOVERY → BUILD</div>
+        <div className="concept-flow">
+          <div className="concept-step">
+            <span>Today</span>
+            <strong>Discovery Sprint</strong>
+            <small>Opportunity map + roadmap</small>
+          </div>
+          <ArrowRight size={18} />
+          <div className="concept-step highlight">
+            <span>Added layer</span>
+            <strong>Working Blueprint</strong>
+            <small>Thin interactive workflow</small>
+          </div>
+          <ArrowRight size={18} />
+          <div className="concept-step">
+            <span>Then</span>
+            <strong>Build Partnership</strong>
+            <small>Production engineering</small>
+          </div>
+        </div>
+
+        <div className="concept-caption">
+          <span className="pulse" />
+          <p>
+            The prototype does <strong>not</strong> try to prove production readiness. It gives
+            everyone something tangible enough to challenge before deeper engineering starts.
+          </p>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function Demo({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(0);
+  const [assigned, setAssigned] = useState(false);
+
+  async function runDemo() {
+    if (running) return;
+    setRunning(true);
+    setDone(0);
+    setAssigned(false);
+
+    for (let i = 1; i <= simulationSteps.length; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 650));
+      setDone(i);
+    }
+
     setRunning(false);
   }
-  const finished=done===simulationSteps.length;
-  return <Frame
-    label="THIN FUNCTIONAL SLICE · REPRESENTATIVE DATA"
-    title="Let the client react to behaviour, not just a specification."
-    desc="This is intentionally deterministic. It demonstrates the operating loop and exception path without pretending that production integrations or policy rules have already been validated."
-    actions={<><button className="secondary" onClick={back}><ArrowLeft size={14}/>Back</button><button className="primary" disabled={!finished} onClick={next}>Review build readiness <ArrowRight size={14}/></button></>}
-    aside={<><div className="rail-top"><span>Run status</span><Pill tone={finished?"good":running?"accent":"neutral"}>{finished?"Complete":running?"Processing":"Ready"}</Pill></div>
-      <h2>What this run proves</h2><div className="mini-list"><span className={done>=1?"on":""}><Check/>Unstructured update can become a structured event.</span><span className={done>=2?"on":""}><Check/>Operational state can react to that event.</span><span className={done>=3?"on":""}><Check/>Rules can create a reviewable exception.</span><span className={reviewed?"on":""}><Check/>A human can remain accountable for resolution.</span></div>
-      <div className="rule"/><p className="micro">It does not validate real APIs, real compliance policy, model accuracy or production security.</p></>}
-  >
-    <div className="sim-grid">
-      <section className="driver-card"><div className="card-head"><span>Incoming update</span><Pill>Driver · DC-042</Pill></div><h3>Daniel Carter</h3><p className="route">Birmingham → Manchester · FL-204</p>
-        <blockquote>“Running about 35 mins late. Had to reroute around M6 traffic. Vehicle is fine.”</blockquote>
-        <button className="run" onClick={run} disabled={running}>{running?<><span className="spinner"/>Processing update</>:finished?<><Rotate size={14}/>Run again</>:<><Play size={14}/>Process update</>}</button>
+
+  const finished = done === simulationSteps.length;
+
+  return (
+    <div className="guided">
+      <section className="guided-head">
+        <div>
+          <span className="kicker">STEP 2 OF 3 · EXPERIENCE THE THIN SLICE</span>
+          <h1>One real workflow is enough to make discovery tangible.</h1>
+          <p>
+            Imagine the sprint identified driver updates and compliance exceptions as the best
+            first slice. Instead of stopping at a recommendation, the client gets to interact
+            with the proposed behaviour.
+          </p>
+        </div>
+
+        <div className="instruction">
+          <span>YOUR NEXT ACTION</span>
+          <strong>Press “Process update” below.</strong>
+          <small>Watch how one field update becomes an operational event and then a human review item.</small>
+        </div>
       </section>
-      <section className="trace"><div className="card-head"><span>Operational trace</span><span>{done}/{simulationSteps.length}</span></div>
-        {simulationSteps.map((s,i)=><motion.div key={s.key} className={"trace-row "+(done>i?"done":running&&done===i?"active":"")} animate={done>i?{opacity:1}:{}}>
-          <span className="trace-icon">{done>i?<Check size={12}/>:String(i+1).padStart(2,"0")}</span><div><strong>{s.label}</strong><small>{s.detail}</small></div>
-        </motion.div>)}
-      </section>
+
+      <div className="demo-stage">
+        <section className="message-panel">
+          <div className="panel-title">
+            <div>
+              <span>Incoming driver update</span>
+              <strong>Daniel Carter · FL-204</strong>
+            </div>
+            <span className="status-chip">Birmingham → Manchester</span>
+          </div>
+
+          <div className="message-bubble">
+            “Running about 35 mins late. Had to reroute around M6 traffic. Vehicle is fine.”
+          </div>
+
+          <div className="before-state">
+            <span>Before processing</span>
+            <div>
+              <p><small>ETA</small><strong>14:20</strong></p>
+              <p><small>Vehicle status</small><strong>Unknown</strong></p>
+              <p><small>Review queue</small><strong>0 items</strong></p>
+            </div>
+          </div>
+
+          <button className="process-button" onClick={runDemo} disabled={running}>
+            {running ? (
+              <>
+                <span className="spinner" /> Processing update
+              </>
+            ) : finished ? (
+              <>
+                <Rotate size={15} /> Run again
+              </>
+            ) : (
+              <>
+                <Play size={15} /> Process update
+              </>
+            )}
+          </button>
+        </section>
+
+        <section className="result-panel">
+          <div className="panel-title">
+            <div>
+              <span>What the proposed system does</span>
+              <strong>{finished ? "Operational state updated" : "Waiting for input"}</strong>
+            </div>
+            <span className={`status-chip ${finished ? "success" : ""}`}>
+              {finished ? "Complete" : `${done}/${simulationSteps.length}`}
+            </span>
+          </div>
+
+          <div className="timeline">
+            {simulationSteps.map((step, index) => {
+              const complete = done > index;
+              const active = running && done === index;
+
+              return (
+                <div key={step.key} className={`timeline-row ${complete ? "complete" : ""} ${active ? "active" : ""}`}>
+                  <span className="timeline-icon">
+                    {complete ? <Check size={13} /> : String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <strong>{step.label}</strong>
+                    <small>{step.detail}</small>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <AnimatePresence>
+            {finished && (
+              <motion.div
+                className="exception-card"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="exception-top">
+                  <Alert size={17} />
+                  <div>
+                    <span>HUMAN REVIEW REQUIRED</span>
+                    <strong>Vehicle inspection due within 48 hours</strong>
+                  </div>
+                </div>
+                <p>
+                  The system can surface the condition and context. Operations still owns the decision.
+                </p>
+                <button
+                  className={assigned ? "assigned" : ""}
+                  onClick={() => setAssigned(true)}
+                >
+                  {assigned ? (
+                    <>
+                      <Check size={14} /> Assigned to Operations
+                    </>
+                  ) : (
+                    "Assign to Operations"
+                  )}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+      </div>
+
+      {finished && (
+        <motion.div
+          className="after-strip"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <div><span>ETA</span><strong>14:55</strong><small>updated from the driver signal</small></div>
+          <div><span>Vehicle status</span><strong>Operational</strong><small>structured from the update</small></div>
+          <div><span>Review queue</span><strong>1 item</strong><small>human judgement preserved</small></div>
+        </motion.div>
+      )}
+
+      <div className="page-actions">
+        <button className="secondary-cta" onClick={onBack}><ArrowLeft size={15} /> Back</button>
+        <button className="primary-cta" onClick={onNext} disabled={!finished}>
+          See what this changes for the build <ArrowRight size={15} />
+        </button>
+      </div>
     </div>
-    <AnimatePresence>{finished && <motion.section className="exception" initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}>
-      <div className="exception-icon"><Alert size={17}/></div><div><span className="eyebrow">HUMAN REVIEW REQUIRED</span><h3>Vehicle FL-204 inspection due within 48 hours.</h3><p>The system can surface the condition and context. Operations still owns the decision.</p></div>
-      <button className={reviewed?"reviewed":""} onClick={()=>setReviewed(true)}>{reviewed?<><Check size={13}/>Assigned to Operations</>:"Assign to Operations"}</button>
-    </motion.section>}</AnimatePresence>
-  </Frame>;
+  );
 }
 
-function Build({back,reset}:{back:()=>void;reset:()=>void}) {
-  const validated=validationItems.filter(v=>v.status==="validated");
-  const unknown=validationItems.filter(v=>v.status==="unknown");
-  return <Frame
-    label="BUILD READINESS · DISCOVERY HANDOFF"
-    title="Separate what was learned from what still needs evidence."
-    desc="The prototype should make the Build Partnership easier to scope, not create false confidence. The handoff keeps validated behaviour and unresolved production dependencies visibly separate."
-    actions={<><button className="secondary" onClick={back}><ArrowLeft size={14}/>Back</button><button className="primary" onClick={reset}><Rotate size={14}/>Restart walkthrough</button></>}
-    aside={<><div className="rail-top"><span>Concept outcome</span><Pill tone="good">Ready to discuss</Pill></div><h2>A more tangible discovery handoff.</h2>
-      <p>Stakeholders react to behaviour. Engineers inherit clearer assumptions. Commercial scope starts from an agreed system shape rather than a blank page.</p>
-      <div className="rule"/><p className="micro">Speculative process concept for Infini AI Solutions. Not presented as an existing Infini service.</p></>}
-  >
-    <div className="readiness">
-      <section><div className="card-head"><span>Validated by thin slice</span><Pill tone="good">{validated.length} items</Pill></div>{validated.map(v=><div className="read-row" key={v.label}><Check size={14}/><div><strong>{v.label}</strong><small>{v.note}</small></div></div>)}</section>
-      <section><div className="card-head"><span>Still requires discovery</span><Pill tone="warn">{unknown.length} items</Pill></div>{unknown.map(v=><div className="read-row unknown" key={v.label}><Alert size={14}/><div><strong>{v.label}</strong><small>{v.note}</small></div></div>)}</section>
+function Handoff({ onBack, onRestart }: { onBack: () => void; onRestart: () => void }) {
+  return (
+    <div className="handoff-layout">
+      <section className="handoff-head">
+        <span className="kicker">STEP 3 OF 3 · DISCOVERY HANDOFF</span>
+        <h1>The client leaves discovery knowing what is real, and what is still unknown.</h1>
+        <p>
+          That is the whole point of the Working Blueprint. It is not another deliverable to
+          admire. It gives the Build Partnership a more concrete starting point.
+        </p>
+      </section>
+
+      <div className="proof-grid">
+        <section className="proof-block good">
+          <div className="proof-title">
+            <Check size={17} />
+            <div>
+              <span>VALIDATED BY THE THIN SLICE</span>
+              <strong>What we can now discuss with confidence</strong>
+            </div>
+          </div>
+
+          <ul>
+            <li><strong>The operating loop</strong><span>A driver signal can become a structured operational event.</span></li>
+            <li><strong>The human boundary</strong><span>Automation surfaces context; Operations owns the exception decision.</span></li>
+            <li><strong>The primary interaction</strong><span>The team sees structured state and an actionable review item.</span></li>
+          </ul>
+        </section>
+
+        <section className="proof-block open">
+          <div className="proof-title">
+            <Alert size={17} />
+            <div>
+              <span>STILL NEEDS PRODUCTION DISCOVERY</span>
+              <strong>What the build must prove next</strong>
+            </div>
+          </div>
+
+          <ul>
+            <li><strong>Real fleet-system APIs</strong><span>Actual integration surface and write permissions.</span></li>
+            <li><strong>Compliance policy</strong><span>Rules, jurisdiction, evidence source and audit requirements.</span></li>
+            <li><strong>Data + security</strong><span>Quality, identity, roles, access and retention controls.</span></li>
+          </ul>
+        </section>
+      </div>
+
+      <section className="handoff-summary">
+        <div>
+          <span className="kicker">THE PROPOSED CHANGE</span>
+          <h2>Discovery Sprint → Working Blueprint → Build Partnership</h2>
+        </div>
+        <p>
+          Stakeholders react to behaviour before committing more engineering time. Bad assumptions
+          surface earlier. The build starts from an agreed workflow shape instead of a blank page.
+        </p>
+      </section>
+
+      <section className="final-note">
+        <span>WHY I BUILT THIS</span>
+        <p>
+          This is the kind of product-to-build gap I enjoy working in: taking a loose commercial
+          requirement, making the workflow concrete quickly, then separating what is actually
+          validated from what still needs production engineering.
+        </p>
+      </section>
+
+      <div className="page-actions">
+        <button className="secondary-cta" onClick={onBack}><ArrowLeft size={15} /> Back</button>
+        <button className="primary-cta" onClick={onRestart}><Rotate size={15} /> Restart walkthrough</button>
+      </div>
     </div>
-    <div className="architecture"><span className="eyebrow">PROPOSED PRODUCTION SHAPE</span><div className="arch-line"><b>Driver / Operations</b><ArrowRight/><b>Interface</b><ArrowRight/><b>Workflow service</b><ArrowRight/><b>Fleet API + rules</b><ArrowRight/><b>Audit + alerts</b></div></div>
-    <div className="phases"><div><span>01</span><strong>Core workflow</strong><small>Integrations + structured event model</small></div><div><span>02</span><strong>Exception operations</strong><small>Permissions + audit trail + review queue</small></div><div><span>03</span><strong>Optimisation</strong><small>Analytics + route intelligence once data is proven</small></div></div>
-  </Frame>;
+  );
 }
 
-export function WorkingBlueprint(){
-  const reduced=useReducedMotion();
-  const [stage,setStage]=useState<Stage>("prioritise");
-  const index=useMemo(()=>stages.findIndex(s=>s.key===stage),[stage]);
-  const next=()=>setStage(stages[Math.min(index+1,stages.length-1)].key);
-  const back=()=>setStage(stages[Math.max(index-1,0)].key);
-  useEffect(()=>{window.scrollTo({top:0,behavior:reduced?"auto":"smooth"})},[stage,reduced]);
-  return <MotionConfig reducedMotion="user"><div className="shell"><Header stage={stage} setStage={setStage}/><main>
-    <AnimatePresence mode="wait"><motion.div key={stage} initial={reduced?false:{opacity:0,y:8,filter:"blur(3px)"}} animate={{opacity:1,y:0,filter:"blur(0)"}} exit={reduced?undefined:{opacity:0,y:-4}} transition={{duration:reduced?0:.22,ease:[.16,1,.3,1]}}>
-      {stage==="prioritise"&&<Prioritise next={next}/>}
-      {stage==="model"&&<Model next={next} back={back}/>}
-      {stage==="simulate"&&<Simulate next={next} back={back}/>}
-      {stage==="build"&&<Build back={back} reset={()=>setStage("prioritise")}/>}
-    </motion.div></AnimatePresence>
-  </main><footer><span>INFINI WORKING BLUEPRINT · CONCEPT PROTOTYPE</span><span>Public context · representative assumptions</span></footer></div></MotionConfig>
+export function WorkingBlueprint() {
+  const reducedMotion = useReducedMotion();
+  const [view, setView] = useState<View>("intro");
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+  }, [view, reducedMotion]);
+
+  return (
+    <MotionConfig reducedMotion="user">
+      <Shell view={view}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={view}
+            initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reducedMotion ? undefined : { opacity: 0, y: -5 }}
+            transition={{ duration: reducedMotion ? 0 : 0.22, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {view === "intro" && <Intro onStart={() => setView("demo")} />}
+            {view === "demo" && <Demo onBack={() => setView("intro")} onNext={() => setView("handoff")} />}
+            {view === "handoff" && <Handoff onBack={() => setView("demo")} onRestart={() => setView("intro")} />}
+          </motion.div>
+        </AnimatePresence>
+      </Shell>
+    </MotionConfig>
+  );
 }
